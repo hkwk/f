@@ -2,5 +2,22 @@
 name = "f"
 version = "0.1.0"
 edition = "2024"
+description = "A lightweight dual-pane file manager with GUI built using iced, inspired by Total Commander."
+readme = "README.md"
+license = "GPL-3.0-only"
+license-file = "LICENSE"
+repository = "https://github.com/hkwk/f"
+homepage = "https://github.com/hkwk/f"
+documentation = "https://docs.rs/f"
+keywords = ["file-manager", "gui", "iced", "dual-pane", "file-operations"]
+categories = ["command-line-utilities", "gui", "file-system"]
+authors = ["hkwk <>"]
+
+[package.metadata]
+# crates.io-specific metadata and badges can go here
 
 [dependencies]
+iced = { version = "0.10", features = ["wgpu"] }
+walkdir = "2.3"
+anyhow = "1.0"
+fs_extra = "1.3"
