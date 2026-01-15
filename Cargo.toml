@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+iced = { version = "0.10", features = ["wgpu"] }
+walkdir = "2.3"
+anyhow = "1.0"
+fs_extra = "1.3"
