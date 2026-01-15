@@ -5,12 +5,11 @@ edition = "2024"
 description = "A lightweight dual-pane file manager with GUI built using iced, inspired by Total Commander."
 readme = "README.md"
 license = "GPL-3.0-only"
-license-file = "LICENSE"
 repository = "https://github.com/hkwk/f"
 homepage = "https://github.com/hkwk/f"
 documentation = "https://docs.rs/f"
-keywords = ["file-manager", "gui", "iced", "dual-pane", "file-operations"]
-categories = ["command-line-utilities", "gui", "file-system"]
+keywords = ["file-manager", "gui", "dual-pane", "file-operations"]
+categories = ["command-line-utilities", "gui", "filesystem"]
 authors = ["hkwk <>"]
 
 [package.metadata]
