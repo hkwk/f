@@ -13,7 +13,7 @@
 //! ```
 
 use anyhow::Result;
-
+use std::time::SystemTime;
 
 /// A directory entry returned by the small API.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,12 +22,17 @@ pub struct Entry {
     pub name: String,
     /// Whether this entry is a directory
     pub is_dir: bool,
+    /// File size in bytes when applicable
+    pub size: Option<u64>,
+    /// Last modification timestamp
+    pub modified: Option<SystemTime>,
 }
 
 /// Filesystem helper functions used by the GUI and suitable for reuse.
 pub mod fs {
     use super::{Entry, Result};
     use fs_extra::dir::{self, CopyOptions};
+    use std::cmp::Ordering;
     use std::fs;
     use std::path::Path;
 
@@ -38,13 +43,24 @@ pub mod fs {
         let mut entries = Vec::new();
         if let Ok(read) = fs::read_dir(path) {
             for entry in read.flatten() {
-                if let Ok(ft) = entry.file_type() {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    entries.push(Entry { name, is_dir: ft.is_dir() });
-                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                let metadata = entry.metadata().ok();
+                let is_dir = metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+                let size = metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
+                let modified = metadata.and_then(|m| m.modified().ok());
+                entries.push(Entry {
+                    name,
+                    is_dir,
+                    size,
+                    modified,
+                });
             }
         }
-        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        });
         Ok(entries)
     }
 
@@ -53,7 +69,13 @@ pub mod fs {
         let list = list_dir(path)?;
         Ok(list
             .into_iter()
-            .map(|e| if e.is_dir { format!("{}/", e.name) } else { e.name })
+            .map(|e| {
+                if e.is_dir {
+                    format!("{}/", e.name)
+                } else {
+                    e.name
+                }
+            })
             .collect())
     }
 
@@ -86,7 +108,10 @@ pub mod fs {
     /// Search for entries in the given directory whose name contains `pattern`.
     pub fn search(path: &Path, pattern: &str) -> Result<Vec<Entry>> {
         let all = list_dir(path)?;
-        Ok(all.into_iter().filter(|e| e.name.contains(pattern)).collect())
+        Ok(all
+            .into_iter()
+            .filter(|e| e.name.contains(pattern))
+            .collect())
     }
 }
 
@@ -94,7 +119,7 @@ pub mod fs {
 mod tests {
     use super::fs;
     use anyhow::Result;
-    use std::fs::{create_dir_all, File};
+    use std::fs::{File, create_dir_all};
     use std::path::PathBuf;
 
     #[test]
