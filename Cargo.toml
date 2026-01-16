@@ -9,7 +9,6 @@ repository = "https://github.com/hkwk/f"
 homepage = "https://github.com/hkwk/f"
 documentation = "https://docs.rs/f"
 keywords = ["file-manager", "gui", "iced", "dual-pane", "file-operations"]
-categories = ["command-line-utilities", "gui", "file-system"]
 authors = ["hkwk <>"]
 
 [package.metadata]
