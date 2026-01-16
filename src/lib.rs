@@ -31,6 +31,7 @@ pub struct Entry {
 /// Filesystem helper functions used by the GUI and suitable for reuse.
 pub mod fs {
     use super::{Entry, Result};
+    use anyhow::anyhow;
     use fs_extra::dir::{self, CopyOptions};
     use std::cmp::Ordering;
     use std::fs;
@@ -95,6 +96,16 @@ pub mod fs {
         Ok(())
     }
 
+    /// Move a file or directory into `dest_dir` (similar semantics as copy_to).
+    pub fn move_to(src: &Path, dest_dir: &Path) -> Result<()> {
+        let Some(name) = src.file_name() else {
+            return Err(anyhow!("Source path has no file name"));
+        };
+        let dest = dest_dir.join(name);
+        std::fs::rename(src, dest)?;
+        Ok(())
+    }
+
     /// Delete a file or directory (recursively for directories).
     pub fn delete(path: &Path) -> Result<()> {
         if path.is_dir() {
@@ -102,6 +113,12 @@ pub mod fs {
         } else {
             let _ = fs::remove_file(path)?;
         }
+        Ok(())
+    }
+
+    /// Create a directory at the provided path.
+    pub fn create_dir(path: &Path) -> Result<()> {
+        fs::create_dir(path)?;
         Ok(())
     }
 
