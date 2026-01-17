@@ -1,6 +1,6 @@
 [package]
 name = "f"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "A lightweight dual-pane file manager with GUI built using iced, inspired by Total Commander."
 readme = "README.md"
@@ -28,6 +28,11 @@ sha1 = "0.10"
 sha2 = "0.10"
 sha3 = "0.10"
 crc32fast = "1.4"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3.6"
+
+[[bin]]
+name = "regcode"
+path = "src/bin/regcode.rs"

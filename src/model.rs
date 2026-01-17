@@ -293,6 +293,8 @@ impl ThemeMode {
 pub struct UiPreferences {
     text_scale: f32,
     language: Language,
+    registration_name: Option<String>,
+    registration_input: String,
 }
 
 impl UiPreferences {
@@ -300,6 +302,8 @@ impl UiPreferences {
         Self {
             text_scale: 1.0,
             language: Language::default(),
+            registration_name: None,
+            registration_input: String::new(),
         }
     }
 
@@ -325,6 +329,30 @@ impl UiPreferences {
 
     pub fn set_language(&mut self, language: Language) {
         self.language = language;
+    }
+
+    pub fn is_registered(&self) -> bool {
+        self.registration_name.is_some()
+    }
+
+    pub fn registration_name(&self) -> Option<&str> {
+        self.registration_name.as_deref()
+    }
+
+    pub fn set_registration_name(&mut self, name: String) {
+        self.registration_name = Some(name);
+    }
+
+    pub fn clear_registration(&mut self) {
+        self.registration_name = None;
+    }
+
+    pub fn registration_input(&self) -> &str {
+        &self.registration_input
+    }
+
+    pub fn set_registration_input(&mut self, value: String) {
+        self.registration_input = value;
     }
 }
 

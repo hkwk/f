@@ -18,7 +18,7 @@ fn main() -> AnyResult<()> {
         FileCommander::view,
     )
     .subscription(FileCommander::subscription)
-    .title("f  Dual Pane File Manager")
+    .title(|state: &FileCommander| state.window_title())
     .window_size(Size::new(1280.0, 720.0))
     .antialiasing(true)
     .centered()

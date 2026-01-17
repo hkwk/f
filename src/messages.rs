@@ -50,6 +50,7 @@ pub enum Message {
     EditFile(Side),
     Compress(Side),
     SwapPanels,
+    FocusPanel(Side),
     ComputeHashes(Side),
     HashesComputed {
         side: Side,
@@ -66,6 +67,9 @@ pub enum Message {
         delta: i32,
     },
     LanguageSelected(Language),
+    RegistrationCodeChanged(String),
+    ApplyRegistration,
+    ClearRegistration,
     KeyboardShortcut {
         key: Key,
         modifiers: Modifiers,

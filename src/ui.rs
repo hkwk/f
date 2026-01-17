@@ -180,17 +180,54 @@ fn top_toolbar(
 
     let config_btn = top_button(config_label, Some(Message::ToggleConfigPanel), palette, prefs);
     let about_btn = top_button(about_label, Some(Message::ToggleAboutPanel), palette, prefs);
+    let badge_element: Option<Element<'static, Message>> = if prefs.is_registered() {
+        None
+    } else {
+        let badge_content = column![
+            label(
+                strings.badge_open_source,
+                scaled(TEXT_SIZE_BASE, prefs),
+                palette.text,
+            ),
+            label(
+                strings.registration_cta,
+                scaled(TEXT_SIZE_SMALL, prefs),
+                palette.muted_text,
+            ),
+        ]
+        .spacing(2);
+        Some(
+            container(mouse_area(badge_content).on_press(Message::ToggleConfigPanel))
+                .padding([4, 8])
+                .style(move |_| Style {
+                    background: Some(palette.surface.into()),
+                    border: Border {
+                        width: 1.0,
+                        radius: 6.0.into(),
+                        color: palette.border_inactive,
+                    },
+                    ..Style::default()
+                })
+                .into(),
+        )
+    };
 
-    let row = row![
+    let mut row = row![
         refresh,
         hash_btn,
         theme_btn,
         config_btn,
         Space::new().width(Length::Fill),
-        about_btn,
     ]
     .spacing(PANEL_SPACING)
     .align_y(Alignment::Center);
+
+    if let Some(badge) = badge_element {
+        row = row
+            .push(badge)
+            .push(Space::new().width(Length::Fixed(8.0)));
+    }
+    row = row.push(about_btn);
 
     container(row)
         .padding(ROW_PADDING)
@@ -230,7 +267,7 @@ fn config_panel(
     )
     .placeholder(strings.config_language_placeholder);
 
-    let content = row![
+    let base_row = row![
         label_text,
         Space::new().width(Length::Fixed(8.0)),
         top_button("-", Some(Message::DecreaseFontSize), palette, prefs),
@@ -244,6 +281,58 @@ fn config_panel(
     ]
     .spacing(PANEL_SPACING)
     .align_y(Alignment::Center);
+
+    let status_text = if let Some(name) = prefs.registration_name() {
+        strings
+            .registration_status_registered
+            .replace("{name}", name)
+    } else {
+        strings.registration_status_open.to_string()
+    };
+    let status_color = if prefs.is_registered() {
+        palette.accent
+    } else {
+        palette.muted_text
+    };
+    let status_row = row![
+        label(
+            format!("{}: {}", strings.registration_heading, status_text),
+            scaled(TEXT_SIZE_BASE, prefs),
+            status_color,
+        )
+        .width(Length::Fill),
+    ];
+
+    let registration_input = text_input(
+        strings.registration_placeholder,
+        prefs.registration_input(),
+    )
+    .on_input(Message::RegistrationCodeChanged)
+    .on_submit(Message::ApplyRegistration)
+    .width(Length::FillPortion(3));
+
+    let apply_btn = top_button(strings.registration_apply, Some(Message::ApplyRegistration), palette, prefs);
+    let mut clear_btn = top_button(strings.registration_clear, None, palette, prefs);
+    if prefs.is_registered() {
+        clear_btn = clear_btn.on_press(Message::ClearRegistration);
+    }
+
+    let registration_row = row![
+        registration_input,
+        apply_btn,
+        clear_btn,
+    ]
+    .spacing(PANEL_SPACING)
+    .align_y(Alignment::Center);
+
+    let content = column![
+        base_row,
+        Space::new().height(Length::Fixed(GAP_SMALL)),
+        status_row,
+        Space::new().height(Length::Fixed(GAP_SMALL)),
+        registration_row,
+    ]
+    .spacing(PANEL_SPACING);
 
     container(content)
         .padding(ROW_PADDING)
@@ -264,7 +353,26 @@ fn about_panel(
     prefs: &UiPreferences,
     strings: &'static Strings,
 ) -> Element<'static, Message> {
+    let edition_value = if prefs.is_registered() {
+        strings.badge_registered
+    } else {
+        strings.badge_open_source
+    };
+    let edition_line = label(
+        format!("{}: {}", strings.registration_status_label, edition_value),
+        scaled(TEXT_SIZE_BASE, prefs),
+        palette.text,
+    );
+    let status_line = if let Some(name) = prefs.registration_name() {
+        strings
+            .registration_status_registered
+            .replace("{name}", name)
+    } else {
+        strings.registration_status_open.to_string()
+    };
     let lines = column![
+        edition_line,
+        label(status_line, scaled(TEXT_SIZE_SMALL, prefs), palette.muted_text),
         label(
             strings.about_project,
             scaled(TEXT_SIZE_BASE, prefs),

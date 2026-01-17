@@ -17,6 +17,7 @@ use crate::ops::{
     move_entry, read_text_file, rename_path,
 };
 use crate::ui;
+use f::registration;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -281,6 +282,10 @@ impl FileCommander {
                 self.active = side;
                 self.compress_from(side)
             }
+            Message::FocusPanel(side) => {
+                self.active = side;
+                Task::none()
+            }
             Message::SwapPanels => {
                 std::mem::swap(&mut self.left, &mut self.right);
                 self.active = self.active.other();
@@ -339,6 +344,40 @@ impl FileCommander {
                 self.ui_prefs.set_language(language);
                 Task::none()
             }
+            Message::RegistrationCodeChanged(value) => {
+                self.ui_prefs.set_registration_input(value);
+                Task::none()
+            }
+            Message::ApplyRegistration => {
+                let code = self.ui_prefs.registration_input().trim().to_string();
+                if code.is_empty() {
+                    self.banner = Some(BannerMessage::error("Enter a registration code"));
+                    return Task::none();
+                }
+                match registration::verify_code(&code) {
+                    Ok(info) => {
+                        self.ui_prefs.set_registration_name(info.name.clone());
+                        self.ui_prefs.set_registration_input(String::new());
+                        self.banner = Some(BannerMessage::info(format!(
+                            "Registered to {}",
+                            info.name
+                        )));
+                    }
+                    Err(err) => {
+                        self.banner = Some(BannerMessage::error(format!(
+                            "Registration failed: {err}"
+                        )));
+                    }
+                }
+                Task::none()
+            }
+            Message::ClearRegistration => {
+                if self.ui_prefs.is_registered() {
+                    self.ui_prefs.clear_registration();
+                    self.banner = Some(BannerMessage::info("Registration cleared"));
+                }
+                Task::none()
+            }
             Message::KeyboardShortcut { key, modifiers } => {
                 if let Some(mapped) = shortcut_message(key, modifiers, self.active) {
                     return self.update(mapped);
@@ -363,6 +402,16 @@ impl FileCommander {
             &self.ui_prefs,
             strings,
         )
+    }
+
+    pub fn window_title(&self) -> String {
+        let strings = i18n::strings(self.ui_prefs.language());
+        let edition = if self.ui_prefs.is_registered() {
+            strings.badge_registered
+        } else {
+            strings.badge_open_source
+        };
+        format!("{} {}", strings.title_base, edition)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -658,7 +707,7 @@ fn shortcut_message(key: Key, modifiers: Modifiers, active: Side) -> Option<Mess
         Key::Named(named) => match named {
             Named::Escape => Some(Message::CloseViewer),
             Named::Delete => Some(Message::Delete(active)),
-            Named::Tab => Some(Message::SwapPanels),
+            Named::Tab => Some(Message::FocusPanel(active.other())),
             Named::ArrowUp => Some(Message::MoveSelection {
                 side: active,
                 delta: -1,

@@ -130,6 +130,246 @@ pub mod fs {
             .filter(|e| e.name.contains(pattern))
             .collect())
     }
+
+    /// Read a UTF-8 text file fully into memory.
+    pub fn read_text(path: &Path) -> Result<String> {
+        fs::read_to_string(path).map_err(Into::into)
+    }
+
+    /// Rename a path inside its parent directory, validating conflicts.
+    pub fn rename_within_parent(src: &Path, new_name: &str) -> Result<()> {
+        let Some(parent) = src.parent() else {
+            return Err(anyhow!("Invalid path"));
+        };
+        let dest = parent.join(new_name);
+        if dest.exists() {
+            return Err(anyhow!("Destination already exists"));
+        }
+        fs::rename(src, dest)?;
+        Ok(())
+    }
+}
+
+/// Hashing helpers for generating common digests on files.
+pub mod hash {
+    use super::Result;
+    use crc32fast::Hasher as Crc32Hasher;
+    use md5::Context as Md5Context;
+    use sha1::Sha1;
+    use sha2::Sha256;
+    use sha3::{digest::Digest, Sha3_256};
+    use std::fmt::Write;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::Path;
+
+    /// Collection of frequently requested hashes for a file.
+    #[derive(Debug, Clone)]
+    pub struct FileHashes {
+        pub md5: String,
+        pub crc32: String,
+        pub sha1: String,
+        pub sha256: String,
+        pub sha3_256: String,
+    }
+
+    impl FileHashes {
+        /// Render the hashes into a human-readable report for a path.
+        pub fn to_report(&self, path: &Path) -> String {
+            format!(
+                "File: {path}\nMD5     : {md5}\nCRC32   : {crc32}\nSHA1    : {sha1}\nSHA256  : {sha256}\nSHA3-256: {sha3}\n",
+                path = path.display(),
+                md5 = self.md5,
+                crc32 = self.crc32,
+                sha1 = self.sha1,
+                sha256 = self.sha256,
+                sha3 = self.sha3_256,
+            )
+        }
+    }
+
+    /// Compute MD5, CRC32, SHA1, SHA256, and SHA3-256 for the given file.
+    pub fn compute(path: &Path) -> Result<FileHashes> {
+        let mut file = File::open(path)?;
+        let mut buffer = [0u8; 16 * 1024];
+        let mut md5_ctx = Md5Context::new();
+        let mut sha1_ctx = Sha1::new();
+        let mut sha256_ctx = Sha256::new();
+        let mut sha3_ctx = Sha3_256::new();
+        let mut crc_ctx = Crc32Hasher::new();
+
+        loop {
+            let read = file.read(&mut buffer)?;
+            if read == 0 {
+                break;
+            }
+            let chunk = &buffer[..read];
+            md5_ctx.consume(chunk);
+            sha1_ctx.update(chunk);
+            sha256_ctx.update(chunk);
+            sha3_ctx.update(chunk);
+            crc_ctx.update(chunk);
+        }
+
+        let md5_hex = bytes_to_hex(md5_ctx.compute().as_ref());
+        let sha1_hex = bytes_to_hex(sha1_ctx.finalize().as_ref());
+        let sha256_hex = bytes_to_hex(sha256_ctx.finalize().as_slice());
+        let sha3_hex = bytes_to_hex(sha3_ctx.finalize().as_slice());
+        let crc_hex = format!("{:08x}", crc_ctx.finalize());
+
+        Ok(FileHashes {
+            md5: md5_hex,
+            crc32: crc_hex,
+            sha1: sha1_hex,
+            sha256: sha256_hex,
+            sha3_256: sha3_hex,
+        })
+    }
+
+    fn bytes_to_hex(bytes: &[u8]) -> String {
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            let _ = write!(&mut output, "{:02x}", byte);
+        }
+        output
+    }
+}
+
+/// Simple ZIP helper for compressing a single file or directory tree.
+pub mod archive {
+    use super::Result;
+    use anyhow::anyhow;
+    use std::fs::File;
+    use std::io;
+    use std::path::Path;
+    use walkdir::WalkDir;
+    use zip::write::FileOptions;
+    use zip::{CompressionMethod, ZipWriter};
+
+    /// Create a ZIP archive at `dest` containing `src`.
+    pub fn zip_path(src: &Path, dest: &Path) -> Result<()> {
+        let file = File::create(dest)?;
+        let mut zip = ZipWriter::new(file);
+        let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+
+        if src.is_file() {
+            let name = src
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("archive");
+            zip.start_file(name, options)?;
+            let mut input = File::open(src)?;
+            io::copy(&mut input, &mut zip)?;
+        } else {
+            let parent = src.parent().ok_or_else(|| anyhow!("Invalid source"))?;
+            for entry in WalkDir::new(src) {
+                let entry = entry?;
+                let path = entry.path();
+                let relative = path
+                    .strip_prefix(parent)
+                    .map_err(|_| anyhow!("Failed to build archive entry"))?;
+                let mut rel = relative.to_string_lossy().replace('\\', "/");
+                if entry.file_type().is_dir() {
+                    if !rel.ends_with('/') {
+                        rel.push('/');
+                    }
+                    zip.add_directory(&rel, options)?;
+                } else {
+                    zip.start_file(&rel, options)?;
+                    let mut input = File::open(path)?;
+                    io::copy(&mut input, &mut zip)?;
+                }
+            }
+        }
+
+        zip.finish()?;
+        Ok(())
+    }
+}
+
+/// Offline registration helpers shared by the GUI and CLI tools.
+pub mod registration {
+    use super::Result;
+    use anyhow::{anyhow, bail};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    use sha2::{Digest, Sha256};
+
+    pub const CODE_PREFIX: &str = "FREG1";
+    const SECRET: &[u8; 32] = b"f::cmd::reg::seed-2025-guard-key";
+    const SIGNATURE_LEN: usize = 12;
+
+    /// Minimal registration data returned after successful verification.
+    #[derive(Debug, Clone)]
+    pub struct License {
+        pub name: String,
+    }
+
+    /// Verify a registration code and obtain the associated license info.
+    pub fn verify_code(code: &str) -> Result<License> {
+        let trimmed = code.trim();
+        let Some(payload) = trimmed.strip_prefix(&format!("{CODE_PREFIX}-")) else {
+            bail!("Invalid code prefix");
+        };
+        let decoded = URL_SAFE_NO_PAD
+            .decode(payload)
+            .map_err(|_| anyhow!("Invalid code encoding"))?;
+        let payload = String::from_utf8(decoded).map_err(|_| anyhow!("Invalid code body"))?;
+        let mut parts = payload.splitn(2, '|');
+        let name = parts.next().unwrap_or("");
+        let sig_hex = parts.next().unwrap_or("");
+        if sig_hex.len() != SIGNATURE_LEN * 2 {
+            bail!("Invalid signature length");
+        }
+        let clean = sanitize_name(name)?;
+        let expected = proof_for(&clean);
+        let provided = decode_hex(sig_hex)?;
+        if provided != expected {
+            bail!("Signature mismatch");
+        }
+        Ok(License { name: clean })
+    }
+
+    fn sanitize_name(input: &str) -> Result<String> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            bail!("Registration name cannot be empty");
+        }
+        if trimmed.len() > 64 {
+            bail!("Registration name too long");
+        }
+        Ok(trimmed.replace(['\r', '\n'], " "))
+    }
+
+    fn proof_for(name: &str) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        hasher.update(name.as_bytes());
+        hasher.update(SECRET);
+        let digest = hasher.finalize();
+        digest[..SIGNATURE_LEN].to_vec()
+    }
+
+    fn decode_hex(input: &str) -> Result<Vec<u8>> {
+        if input.len() % 2 != 0 {
+            bail!("Invalid hex payload");
+        }
+        let mut bytes = Vec::with_capacity(input.len() / 2);
+        let chars: Vec<char> = input.chars().collect();
+        for chunk in chars.chunks(2) {
+            let hi = from_hex(chunk[0])?;
+            let lo = from_hex(chunk[1])?;
+            bytes.push((hi << 4) | lo);
+        }
+        Ok(bytes)
+    }
+
+    fn from_hex(ch: char) -> Result<u8> {
+        match ch {
+            '0'..='9' => Ok(ch as u8 - b'0'),
+            'a'..='f' => Ok(ch as u8 - b'a' + 10),
+            'A'..='F' => Ok(ch as u8 - b'A' + 10),
+            _ => bail!("Invalid hex character"),
+        }
+    }
 }
 
 #[cfg(test)]

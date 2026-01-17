@@ -37,6 +37,9 @@ impl fmt::Display for Language {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Strings {
+    pub title_base: &'static str,
+    pub badge_open_source: &'static str,
+    pub badge_registered: &'static str,
     pub toolbar_refresh: &'static str,
     pub toolbar_hashes: &'static str,
     pub toolbar_theme_dark: &'static str,
@@ -46,6 +49,14 @@ pub struct Strings {
     pub config_font_size: &'static str,
     pub config_language: &'static str,
     pub config_language_placeholder: &'static str,
+    pub registration_heading: &'static str,
+    pub registration_placeholder: &'static str,
+    pub registration_apply: &'static str,
+    pub registration_clear: &'static str,
+    pub registration_status_open: &'static str,
+    pub registration_status_registered: &'static str,
+    pub registration_status_label: &'static str,
+    pub registration_cta: &'static str,
     pub action_copy_right: &'static str,
     pub action_copy_left: &'static str,
     pub action_delete_left: &'static str,
@@ -104,6 +115,9 @@ pub fn strings(language: Language) -> &'static Strings {
 }
 
 const EN_STRINGS: Strings = Strings {
+    title_base: "f Dual Pane File Manager",
+    badge_open_source: "[Open Source Version]",
+    badge_registered: "[Registered Version]",
     toolbar_refresh: "Refresh All",
     toolbar_hashes: "Hashes",
     toolbar_theme_dark: "Dark Mode",
@@ -113,6 +127,14 @@ const EN_STRINGS: Strings = Strings {
     config_font_size: "Font Size",
     config_language: "Language",
     config_language_placeholder: "Choose",
+    registration_heading: "Registration",
+    registration_placeholder: "Enter registration code",
+    registration_apply: "Register",
+    registration_clear: "Clear",
+    registration_status_open: "Not registered",
+    registration_status_registered: "Registered to {name}",
+    registration_status_label: "Edition",
+    registration_cta: "Click to register",
     action_copy_right: "Copy ->",
     action_copy_left: "<- Copy",
     action_delete_left: "Delete Left",
@@ -163,6 +185,9 @@ const EN_STRINGS: Strings = Strings {
 };
 
 const ZH_STRINGS: Strings = Strings {
+    title_base: "f 双栏文件管理器",
+    badge_open_source: "[开源版]",
+    badge_registered: "[注册版]",
     toolbar_refresh: "刷新全部",
     toolbar_hashes: "计算哈希",
     toolbar_theme_dark: "夜间模式",
@@ -172,6 +197,14 @@ const ZH_STRINGS: Strings = Strings {
     config_font_size: "字体大小",
     config_language: "界面语言",
     config_language_placeholder: "请选择",
+    registration_heading: "软件注册",
+    registration_placeholder: "输入注册码",
+    registration_apply: "注册",
+    registration_clear: "清除",
+    registration_status_open: "当前未注册",
+    registration_status_registered: "注册用户：{name}",
+    registration_status_label: "版本",
+    registration_cta: "点击输入注册码",
     action_copy_right: "复制 ->",
     action_copy_left: "<- 复制",
     action_delete_left: "删除左侧",
@@ -222,6 +255,9 @@ const ZH_STRINGS: Strings = Strings {
 };
 
 const JA_STRINGS: Strings = Strings {
+    title_base: "f デュアルペインファイルマネージャ",
+    badge_open_source: "[オープンソース版]",
+    badge_registered: "[登録版]",
     toolbar_refresh: "再読み込み",
     toolbar_hashes: "ハッシュ",
     toolbar_theme_dark: "ダークモード",
@@ -231,6 +267,14 @@ const JA_STRINGS: Strings = Strings {
     config_font_size: "フォントサイズ",
     config_language: "表示言語",
     config_language_placeholder: "選択",
+    registration_heading: "ライセンス登録",
+    registration_placeholder: "登録コードを入力",
+    registration_apply: "登録",
+    registration_clear: "解除",
+    registration_status_open: "未登録です",
+    registration_status_registered: "{name} として登録済み",
+    registration_status_label: "エディション",
+    registration_cta: "登録コードを入力",
     action_copy_right: "コピー ->",
     action_copy_left: "<- コピー",
     action_delete_left: "左側を削除",
