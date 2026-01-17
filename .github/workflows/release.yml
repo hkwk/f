@@ -20,7 +20,7 @@ jobs:
 
     env:
       CARGO_TERM_COLOR: always
-      CRATE_NAME: bwclient
+      CRATE_NAME: f
 
     steps:
       - name: Checkout
