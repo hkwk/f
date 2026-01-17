@@ -39,6 +39,4 @@ winres = "0.1"
 [dev-dependencies]
 tempfile = "3.6"
 
-[[bin]]
-name = "regcode"
-path = "src/bin/regcode.rs"
+
