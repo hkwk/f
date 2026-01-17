@@ -1,0 +1,136 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    env:
+      CARGO_TERM_COLOR: always
+      CRATE_NAME: bwclient
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libwayland-dev libgl1-mesa-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+
+      - name: Build (release)
+        run: cargo build --release --locked
+
+      - name: Prepare artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF -replace 'refs/tags/','' } else { '${{ github.run_number }}' }
+          $name = "$env:CRATE_NAME-$version-Windows-${{ runner.arch }}"
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item "target/release/$env:CRATE_NAME.exe" "dist/$env:CRATE_NAME.exe"
+          Compress-Archive -Path dist/* -DestinationPath "$name.zip"
+          Write-Output "ASSET_PATH=$name.zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prepare artifact (macOS/Linux)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+          else
+            version="${{ github.run_number }}"
+          fi
+          name="$CRATE_NAME-$version-${{ runner.os }}-${{ runner.arch }}"
+          mkdir -p dist
+          cp "target/release/$CRATE_NAME" dist/
+
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            # Create an .app bundle so users can double-click the app in Finder
+            APP_NAME="$CRATE_NAME.app"
+            APP_DIR="${APP_NAME}/Contents"
+            mkdir -p "$APP_DIR/MacOS" "$APP_DIR/Resources"
+            # Move binary into bundle
+            install -m 755 "dist/$CRATE_NAME" "$APP_DIR/MacOS/$CRATE_NAME"
+
+            # Basic Info.plist
+            # write a minimal Info.plist (avoid heredoc to keep YAML happy)
+            printf '%s\n' \
+              '<?xml version="1.0" encoding="UTF-8"?>' \
+              '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+              '<plist version="1.0">' \
+              '<dict>' \
+              '  <key>CFBundleExecutable</key>' \
+              "  <string>$CRATE_NAME</string>" \
+              '  <key>CFBundleIdentifier</key>' \
+              "  <string>com.example.$CRATE_NAME</string>" \
+              '  <key>CFBundleName</key>' \
+              "  <string>$CRATE_NAME</string>" \
+              '  <key>CFBundleVersion</key>' \
+              "  <string>$version</string>" \
+              '  <key>CFBundlePackageType</key>' \
+              '  <string>APPL</string>' \
+              '</dict>' \
+              '</plist>' \
+              > "$APP_DIR/Info.plist"
+
+            # Optionally, add an icon if present
+            if [[ -f "icons/app.icns" ]]; then
+              cp "icons/app.icns" "$APP_DIR/Resources/"
+            fi
+
+            # Create a DMG for nicer distribution
+            DMG_NAME="$CRATE_NAME-$version-macos.dmg"
+            hdiutil create -volname "$CRATE_NAME" -srcfolder "$APP_NAME" -ov -format UDZO "$DMG_NAME"
+            ASSET_PATH="$DMG_NAME"
+          else
+            # Linux: fallback to tar.gz
+            tar -czf "$name.tar.gz" -C dist .
+            ASSET_PATH="$name.tar.gz"
+          fi
+
+          echo "ASSET_PATH=$ASSET_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload artifact to workflow (debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_PATH }}
+          path: ${{ env.ASSET_PATH }}
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_PATH }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
